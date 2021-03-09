@@ -214,28 +214,49 @@ class Utilities(object):
                        verbosity=0):
         try:
             with open(filepath, "r") as f:
-                for l in range(nlines):
-                    l.lower()
+                for _ in range(nlines):
+                    line = f.readline()
+                    line.lower()
         except UnicodeDecodeError:
             return True
         return False
 
     @staticmethod
     def sha_256(fpath,
-                fmode='r', # default is text mode
+                fmode='rb',# default is text mode
+                encoding=None,
                 size=4096):
         m = hashlib.sha256()
         try:
-            with open(fpath, mode=fmode) as fp:
+            chunk = None
+            fsize = os.path.getsize(fpath)
+            with open(fpath, mode=fmode, encoding=encoding) as fp:
                 for chunk in iter(lambda: fp.read(size), b''):
                     m.update(chunk)
             return m.hexdigest()
-        except PermissionError as e:
+        except PermissionError as pe:
+            errmsg = Utilities.last_exception_info()
+            warnings.warn(errmsg)
             # if tried text, then try binary
             if fmode == 'r':
-                return Utilities.sha_256(fpath, fmode='rb')
+                return Utilities.sha_256(fpath, fmode='rb', encoding=None)
             else:
-                raise PermissionError(e)
+                raise PermissionError(pe)
+        except TypeError as te:
+            errmsg = Utilities.last_exception_info()
+            warnings.warn(errmsg)
+            if fmode == 'r' and encoding == None:
+                return Utilities.sha_256(fpath, fmode='rb', encoding=None)
+        except OSError as oe:
+            errmsg = Utilities.last_exception_info()
+            warnings.warn(errmsg)
+            OSError(oe)
+        except Exception as e:
+            errmsg = Utilities.last_exception_info()
+            warnings.warn(errmsg)
+            raise RuntimeError(e)
+
+
 
     @staticmethod
     def handle_exc(e, rethrow=False):
@@ -318,17 +339,29 @@ class Utilities(object):
         return outfilepath
 
     @staticmethod
-    def make_tempfilepath(folder, base, sep="_", ext="", verbosity=0):
+    def make_tempfilepath(folder, base, sep="_", ext="",
+                          max_attempts=10,
+                          exist_ok=True,
+                          verbosity=0):
         if verbosity > 0:
             print("{0} {1}".format(Utilities.whoami(), Utilities.now()))
-        number = 1
-        while True:
-            nowstr = datetime.datetime.now().strftime("%Y-%m-%d__%H_%M_%S")
+        if not os.path.isdir(folder):
+            if verbosity > 0:
+                print("trying to make folder {0}".format(folder))
+            try:
+                os.makedirs(folder, exist_ok=exist_ok)
+            except Exception as e:
+                msg = Utilities.last_exception_info()
+                warnings.warn(msg)
+                raise RuntimeError(e)
+        attempt = 0
+        while attempt < max_attempts:
+            nowstr = Utilities.nowstr()
             filename = base + sep + nowstr + ext
             filepath = os.path.join(folder, filename)
             if not os.path.exists(filepath):
                 break
-            number = number + 1
+            attempt += 1
         return filepath
 
     @staticmethod
@@ -482,8 +515,17 @@ class Utilities(object):
 
     @staticmethod
     def unzip_to_temp(zipfilepath,
+                      tempfolder=None,
                       tempname="temp",
                       verbosity=0):
+        if verbosity > 0:
+            ldict = locals()
+            msg = "{0} <{1}>".format(Utilities.whoami(), Utilities.now())
+            for key in ldict.keys():
+                print("{0}: {1}".format(key, ldict[key]))
+
+        if tempfolder is None:
+            tempfolder = os.path.split(zipfilepath)[0]
         zfile = zipfile.ZipFile(zipfilepath, mode='r')
         zpath = os.path.split(zipfilepath)[0]
         while True:
@@ -520,6 +562,7 @@ class GitBack(object):
     def backup_folders(self, folders=None,
                        dest_drive=None,
                        dest_folder=None,
+                       temp_folder=None,
                        logfilepath=None,
                        logfilename=None,
                        verbosity=0):
@@ -576,8 +619,9 @@ class GitBack(object):
                     items = os.listdir(folder)
                     n = min(len(items), 7)
                     print("Found {0}".format(items[:n]))
-                self.backup_folder(sourcefolder=folder,
+                self.backup_folder(sourceroot=folder,
                                    destroot=destroot,
+                                   tempfolder=temp_folder,
                                    testing=False,
                                    verbosity=verbosity)
             except PermissionError as e:
@@ -594,11 +638,12 @@ class GitBack(object):
                 fp.write(msg)
         return 0
 
-    def backup_folder(self, sourcefolder,
+    def backup_folder(self, sourceroot,
                       destroot,
                       tempfolder=None,
                       include_exts=None,
                       exclude_exts=None,
+                      dt_fmt='%Y-%m-%dT%H:%M:%S',
                       comp_thresh=0.9,
                       compression=zipfile.ZIP_DEFLATED,
                       compresslevel=zlib.Z_DEFAULT_COMPRESSION,
@@ -607,8 +652,9 @@ class GitBack(object):
 
         """
         try to make a backup of a single folder
-        :param sourcefolder: original (source) path
+        :param sourceroot: original (source) path
         :param destroot: destination path
+        :param tempfolder: folder for temp files
         :param include_exts: file extensions to include
         :param exclude_exts: file extensions to exclude
         :param comp_thresh: threshold for compression
@@ -621,14 +667,20 @@ class GitBack(object):
         """
         argdict = locals()
         verbosity = max(verbosity, self.verbosity)
-        print("whoami: {0}".format(Utilities.os_whoami()))
-        print("USERNAME: {0}".format(Utilities.username()))
+
+        if verbosity > 0:
+            msg = "{0} <{1}>".format(Utilities.whoami(), Utilities.now())
+            msg += "\n  sourceroot= {0} destfolder= {1}".format(sourceroot, destroot)
+            msg += "testing: {0}".format(testing)
+            print(msg)
+
         if tempfolder is None:
             tempfolder = os.path.splitext(__file__)[0] + "_temp"
         if not os.path.isdir(tempfolder):
             os.mkdir(tempfolder)
         if verbosity > 0:
-            print("tempfolder= {0}".format(tempfolder))
+            print("  tempfolder= {0}".format(tempfolder))
+
         # process include_exts and exclude_exts
         for xname in ('include_exts', 'exclude_exts'):
             x = argdict[xname]
@@ -642,209 +694,208 @@ class GitBack(object):
             if verbosity > 1:
                 print("{0}: {1}".format(xname, x))
             locals()[xname] = x
-        # Backup the entire contents of "folder" into a zip file.
-        if verbosity > 0:
-            print("function: {0}".format(Utilities.whoami()))
-            print("sourcefolder= {0} destfolder= {1}".format(sourcefolder, destfolder))
-            print("testing: {0}".format(testing))
 
-        pp_sourcefolder = PurePath(sourcefolder)
-        if not pp_sourcefolder.is_absolute():
-            warnings.warn("sourcefolder must be absolute, {0}".format(sourcefolder))
+        pp_sourceroot = PurePath(sourceroot)
+        if not pp_sourceroot.is_absolute():
+            warnings.warn("sourceroot must be absolute, {0}".format(sourceroot))
 
         pp_destroot = PurePath(destroot)
         if not pp_destroot.is_absolute():
             warnings.warn("destroot must be absolute, {0}".format(destroot))
 
-        if (sourcefolder == destroot) or (pp_sourcefolder == pp_destroot):
-            msg = "sourcefolder cannot be same as destfolder"
+        if (sourceroot == destroot) or (pp_sourceroot == pp_destroot):
+            msg = "sourceroot cannot be same as destfolder"
             msg += "Please choose a different destfolder so files will not be overwritten"
             raise RuntimeError(msg)
 
         Utilities.check_make_path(destroot, verbosity=verbosity)
 
-        # dest_drive = pp_destfolder.drive
         destfolder = os.sep.join(pp_destroot.parts[1:])
 
-        orig_drive = pp_sourcefolder.drive
-        orig_folder = os.sep.join(pp_sourcefolder.parts[1:])
-
+        # orig_drive = pp_sourcefolder.drive
+        # orig_folder = os.sep.join(pp_sourcefolder.parts[1:])
         if True:
-            metafilepath = Utilities.make_metafilepath(outdir=destfolder,
-                                                       basename="backup_meta",
-                                                       ext=".pickle",
-                                                       verbosity=verbosity)
-            metafilename = os.path.split(metafilepath)[1]
-            ddict = OrderedDict()
-            ddict['rec_type'] = "meta_info"
-            ddict['comp_thresh'] = comp_thresh
-            ddict['compression'] = compression
-            ddict['compresslevel'] = compresslevel
-            ddict['backup_version'] = __version__
-            ddict['python_version'] = str(sys.version_info)
-            ddict['zlib_version'] = zlib.__version__
-            ddict["now"] = datetime.datetime.now()
+            pass
+            # metafilepath = Utilities.make_metafilepath(outdir=destfolder,
+            #                                           basename="backup_meta",
+            #                                           ext=".pickle",
+            #                                           verbosity=verbosity)
+            # metafilename = os.path.split(metafilepath)[1]
 
-            #with open(metafilepath, mode='wb') as meta_fp:
+            # with open(metafilepath, mode='wb') as meta_fp:
             #    pickle.dump(ddict, meta_fp)
 
         # Walk the entire folder tree and compress the files in each folder.
 
-        for dirpath, dirnames, filenames in os.walk(sourcefolder, topdown=True):
+        for dirpath, _, filenames in os.walk(sourceroot, topdown=True):
             pp_dirpath = PurePath(dirpath)
-            dirdrive = pp_dirpath.drive
+            # dirdrive = pp_dirpath.drive
             dirfolder = os.sep.join(pp_dirpath.parts[1:])
 
             if verbosity > 0:
-                print("Adding files from '{0}' to '{1}'".format(dirpath, destfolder))
+                print("  Adding files from '{0}' to '{1}'".format(dirpath, destfolder))
 
             for filename in filenames:
-                if filename == metafilename:
-                    continue
-
-                base, ext = os.path.splitext(filename)
-                if include_exts is not None:
-                    if ext not in include_exts:
-                        if verbosity > 1:
-                            print("  Skipping {0}, {1} not in include_exts".format(filename, ext))
-                        continue
-                if exclude_exts is not None:
-                    if ext in exclude_exts:
-                        if verbosity > 1:
-                            print("  Skipping {0}, {1}  in include_exts".format(filename, ext))
-                        continue
-
-                # get the sha256 for the source file
-                sourcepath = os.path.join(dirpath, filename)
-                source_sha256 = Utilities.sha_256(sourcepath, fmode='rb', size=4096)
-
-                this_dest_folder = os.path.join(destfolder, dirfolder)
-                # the backup file will go into the folder/dir this_outpath
-                this_dest_folder = os.path.join(this_dest_folder, filename)
-
-                # now check and see if the dest folder exists
-                if os.path.isdir(this_dest_folder):
-                    # check if there is a file there with the same sha256
-                    dest_files = os.listdir(this_dest_folder)
-                    for dfile in dest_files:
-                        dpath = os.path.join(this_dest_folder, dfile)
-                        dext = os.path.splitext(dfile)[1]
-                        if ext == "zip":
-                            # have to unzip to check
-                            temppath = Utilities.unzip_to_temp(dpath)
-                            dest_sha256 = Utilities.sha_256(temppath, size=4096)
-                        else:
-                            dest_sha256 = Utilities.sha_256(dpath, size=4096)
-
-                        if source_sha256 == dest_sha256:
-                            # then the same contents are already there
-                            msg = "no need to backup {0}, {1} there with same contents".format(filename, dfile)
-                            warnings.warn(msg)
+                try:
+                    if verbosity > 0:
+                        msg = "filename: {0}, dirpath: {1}".format(filename, dirpath)
+                        print(msg)
+                    file_base, file_ext = os.path.splitext(filename)
+                    if include_exts is not None:
+                        if file_ext not in include_exts:
+                            if verbosity > 1:
+                                print("  Skipping {0}, {1} not in include_exts".format(filename, file_ext))
+                            continue
+                    if exclude_exts is not None:
+                        if file_ext in exclude_exts:
+                            if verbosity > 1:
+                                print("  Skipping {0}, {1}  in include_exts".format(filename, file_ext))
                             continue
 
-                # at this point we need to backup
+                    # get the sha256 for the source file
+                    sourcepath = os.path.join(dirpath, filename)
+                    source_sha256 = Utilities.sha_256(sourcepath, fmode='rb', encoding=None,
+                                                      size=4096)
 
-                if testing and (verbosity > 0):
-                    print("  adding {0}".format(filename))
-                else:
-                    try:
-                        ddict = OrderedDict()
-                        # try to zip the file
+                    # Note: source path becomes a dest folder,
+                    #  copies of source files are stored under there
+                    temp_dest_folder = os.path.join(destroot, dirfolder)
+                    # the backup file will go into the folder/dir this_outpath
+                    this_dest_folder = os.path.join(temp_dest_folder, filename)
+
+                    # now check and see if the dest folder exists
+                    if os.path.isdir(this_dest_folder):
+                        # if there is a folder there
+                        #  check all the files int the folder
+                        #  to see if one of the fils sha_256 matches the source's
+                        #  if so, contents the same and no need to backup
+                        # NOTE: should I just check the lastest file?
+                        dest_files = os.listdir(this_dest_folder)
+                        for dfile in dest_files:
+                            dpath = os.path.join(this_dest_folder, dfile)
+                            dext = os.path.splitext(dfile)[1]
+                            if dext == "zip":
+                                # have to unzip to check
+                                temppath = Utilities.unzip_to_temp(dpath,
+                                                                   tempfolder=tempfolder)
+                                dest_sha256 = Utilities.sha_256(temppath, size=4096)
+                            else:
+                                dest_sha256 = Utilities.sha_256(dpath, size=4096)
+
+                            if source_sha256 == dest_sha256:
+                                # then the same contents are already there
+                                msg = "no need to backup {0}, {1} there with same contents".format(filename, dfile)
+                                warnings.warn(msg)
+                                continue
+
+                    # at this point we need to backup
+                    if verbosity > 0:
+                        print("  backing up {0} from {1} to {2}".format(filename, dirpath,
+                                                                        this_dest_folder))
+                    if testing:
+                        # if testing nothing more to do
+                        continue
+
+
+                    # try to zip the file
+                    def zipit(sourcepath,
+                              tempfolder,
+                              verbosity=0):
                         zipfilepath = Utilities.make_tempfilepath(tempfolder,
                                                                   base="temp",
                                                                   ext=".zip",
                                                                   verbosity=verbosity)
-
                         Utilities.create_new_zip(sourcepath, zipfilepath)
-
                         zfile = zipfile.ZipFile(zipfilepath, mode='r')
                         nzipelems = len(list(zfile.infolist()))
                         if nzipelems > 1:
                             msg = "Uh-Oh, {0} elements in zipfile {1}".format(nzipelems, zipfilepath)
                             warnings.warn(msg)
                         zfile.close()
+                        return zipfilepath
+                    zipfilepath = zipit(sourcepath, tempfolder, verbosity=verbosity)
+                    orig_size = os.path.getsize(sourcepath)
+                    comp_size = os.path.getsize(zipfilepath)
+                    comp_ratio = np.nan
+                    if orig_size == 0:
+                        warnings.warn("{0} in {1} size is {2}".format(filename, dirpath, orig_size))
+                        continue
+                    else:
+                        comp_ratio = float(comp_size)/orig_size
 
-                        orig_size = os.path.getsize(sourcepath)
-                        comp_size = os.path.getsize(zipfilepath)
+                    # if compression ratio not less then thresh
+                    #  just use original file
+                    compressed = True
+                    if comp_ratio > comp_thresh:
+                        compressed = False
+                        infilepath = sourcepath
+                    else:
+                        infilepath = zipfilepath
 
-                        ddict['rec_type'] = "file_info"
-                        ddict['filename'] = filename
-                        ddict['folder'] = dirpath
-                        ddict['filepath'] = sourcepath
-                        ddict['orig_size'] = orig_size
-                        ddict['comp_size'] = comp_size
-                        ddict['zipname'] = zfile.filename
-                        ddict['sha256'] = source_sha256
+                    # this_outfilebase = os.path.splitext(ddict['filename'])[0]
+                    # this_outfilename = filename
 
-                        dt_fmt = '%Y-%m-%dT%H:%M:%S'
+                    this_ext = file_ext
+                    if compressed:
+                        this_ext = ".zip"
 
-                        ddict['ctime'] = datetime.datetime.fromtimestamp(os.path.getctime(sourcepath)).\
-                            strftime(dt_fmt)
-                        ddict['mtime'] = datetime.datetime.fromtimestamp(os.path.getmtime(sourcepath)).\
-                            strftime(dt_fmt)
-                        comp_ratio = np.nan
-                        if orig_size == 0:
-                            warnings.warn("{0} in {1} size is {2}".format(filename, sourcefolder, orig_size))
-                            continue
-                        else:
-                            comp_ratio = float(comp_size)/orig_size
-                        ddict['comp_ratio'] = comp_ratio
+                    # construct the dest file path
+                    dest_file_path = Utilities.make_tempfilepath(this_dest_folder,
+                                                                 base="",
+                                                                 ext=this_ext,
+                                                                 verbosity=verbosity)
+                    # copy source to destination
+                    shutil.copy(infilepath, dest_file_path)
 
-                        if ddict['comp_ratio'] > comp_thresh:
-                            ddict['compressed'] = False
-                            infilepath = sourcepath
-                        else:
-                            infilepath = zipfilepath
-                            ddict['compressed'] = True
+                    # create a dictionary with some file backup info
+                    meta_dict = OrderedDict()
+                    meta_dict['filename'] = filename
+                    meta_dict['folder'] = dirpath
+                    meta_dict['filepath'] = sourcepath
+                    meta_dict['orig_size'] = orig_size
+                    meta_dict['comp_size'] = comp_size
+                    meta_dict['sha256'] = source_sha256
+                    meta_dict['ctime'] = datetime.datetime.fromtimestamp(os.path.getctime(sourcepath)).\
+                        strftime(dt_fmt)
+                    meta_dict['mtime'] = datetime.datetime.fromtimestamp(os.path.getmtime(sourcepath)).\
+                        strftime(dt_fmt)
+                    meta_dict['comp_ratio'] = comp_ratio
+                    meta_dict['compressed'] = compressed
 
-                        # write metadata
-                        with open(metafilepath, mode='ab') as meta_fp:
-                            pickle.dump(ddict, meta_fp)
+                    # construct a path for this meta data
+                    meta_file_path = Utilities.make_tempfilepath(this_dest_folder,
+                                                                 base="meta",
+                                                                 ext=".txt",
+                                                                 verbosity=verbosity)
+                    # write the meta_dict to a file in dest folder
+                    with open(meta_file_path, mode="w") as fp:
+                        for key in meta_dict.keys():
+                            fp.write("{0}: {1}\n".format(key, meta_dict[key]))
 
-                        this_outfilebase = os.path.splitext(ddict['filename'])[0]
-                        this_outfilename = filename
+                    if verbosity > 0:
+                        msg = "filename: {0}, filepath: {1}".format(filename, sourcepath)
+                        msg += ", osize= {0}, csize= {1}".format(orig_size, comp_size)
+                        msg += ", compressed= {0}".format(compressed)
+                        msg += "\n infilepath: {0} dest folder: {1}".format(infilepath, this_dest_folder)
+                        # print("sha_256= {0}".format(ddict['sha256']))
+                        print(msg)
 
-                        this_ext = ""
-                        if ddict['compressed']:
-                            this_ext = ".zip"
-                            # this_outfilename = this_outfilebase + ".zip"
-
-                        # outfolder = os.path.join(this_outpath, this_outfilename)
-                        # outfilepath = os.path.join(outfolder, Utilities.nowstr())
-                        if verbosity > 0:
-                            msg = "filename: {0}, filepath: {1}".format(filename, sourcepath)
-                            msg += ", osize= {0}, csize= {1}".format(orig_size, comp_size)
-                            msg += ", compressed= {0}".format(ddict['compressed'])
-                            msg += "\n infilepath: {0} dest folder: {1}".format(infilepath, this_dest_folder)
-                            # print("sha_256= {0}".format(ddict['sha256']))
-                            print(msg)
-
-                        # write the file
-                        if not testing:
-                            if verbosity > 0:
-                                print(" Copying file")
-
-                        # Utilities.check_make_path(outfilepath, verbosity=verbosity)
-
-                        dest_file_path = Utilities.make_tempfilepath(this_dest_folder,
-                                                                     base=Utilities.nowstr(),
-                                                                     ext=this_ext,
-                                                                     verbosity=verbosity)
-                        shutil.copy(infilepath, dest_file_path)
-
-                        # remove the temp zipfile
+                    if compressed:
+                        # remove the temporary zipfile
                         if os.path.isfile(zipfilepath):
-                            zfile.close()
                             try:
                                 os.remove(zipfilepath)
-                            except Exception as err:
-                                Utilities.handle_exc(err, rethrow=False)
+                            except Exception as e:
+                                msg = Utilities.last_exception_info()
+                                warnings.warn(msg)
+                                raise RuntimeError(e)
                         else:
-                            warnings.warn("can't find zipfile {0}".format(zipfilepath))
-                    except Exception as e:
-                        err_msg = Utilities.last_exception_info()
-                        warnings.warn(err_msg)
-                        raise RuntimeError(err_msg)
+                            msg = "can't find zipfile {0}".format(zipfilepath)
+                            raise RuntimeError(msg)                    
+                except Exception as e:
+                    err_msg = Utilities.last_exception_info()
+                    warnings.warn(err_msg)
+                    raise RuntimeError(e)
         if verbosity > 0:
             print("Done")
         # meta_fp.close()
@@ -959,12 +1010,6 @@ def get_fname(i=1):
 if __name__ == "__main__":
     Utils = Utilities()
     warnings.formatwarning = Utils.warning_on_one_line
-    verb = 1
-    ddf = Utils.drives(verbosity=verb)
-    print(ddf)
-    mdf = Utils.module_versions(verbosity=verb)
-    print(mdf)
-
     # initialize parameters
     bfolders = [
                 # os.path.join("C:\\", "dev"),
@@ -979,7 +1024,7 @@ if __name__ == "__main__":
                 os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Videos"),
                 os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Music"),
                 ]
-    dest_drive = "G:/"
+    dest_drive = "G:\\"
 
     dest_folder = os.path.join(dest_drive, os.environ['COMPUTERNAME'])
     logfilename = "backup_log" + "_" + Utilities.nowstr() + ".txt"
