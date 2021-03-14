@@ -11,7 +11,7 @@ import zlib
 import zipfile
 import pickle
 import shutil
-import subprocess
+import re
 import logging
 import pandas as pd
 import numpy as np
@@ -81,6 +81,10 @@ class Utilities(object):
     @staticmethod
     def now():
         return datetime.datetime.now()
+
+    @staticmethod
+    def nowshortstr(fmt="%Y%m%d_%H%M%S"):
+        return datetime.datetime.now().strftime(fmt)
 
     @staticmethod
     def nowstr(fmt="%Y-%m-%d__%H_%M_%S"):
@@ -355,8 +359,7 @@ class Utilities(object):
         if verbosity > 0:
             print("{0} {1}".format(Utilities.whoami(), Utilities.now()))
         while True:
-            nowstr = datetime.datetime.now().strftime("%Y-%m-%d__%H_%M_%S")
-            outfilename = basename + sep + nowstr + ext
+            outfilename = basename + sep + Utilities.nowshortstr() + ext
             if not os.path.exists(outfilename):
                 break
         if verbosity > 0:
@@ -389,8 +392,7 @@ class Utilities(object):
                 raise RuntimeError(e)
         attempt = 0
         while attempt < max_attempts:
-            nowstr = Utilities.nowstr()
-            filename = base + sep + nowstr + ext
+            filename = base + sep + Utilities.nowshortstr() + ext
             filepath = os.path.join(folder, filename)
             if not os.path.exists(filepath):
                 break
@@ -562,7 +564,7 @@ class Utilities(object):
         zfile = zipfile.ZipFile(zipfilepath, mode='r')
         zpath = os.path.split(zipfilepath)[0]
         while True:
-            tempname = tempname + Utilities.nowstr()
+            tempname = tempname + Utilities.nowshortstr()
             temppath = os.path.join(zpath, tempname)
             if not os.path.isfile(temppath):
                 break
@@ -592,10 +594,12 @@ class GitBack(object):
     def __init__(self,
                  logfilepath=None,
                  loglevel=logging.DEBUG,
+                 dt_fmt="%Y%m%d_%H%M%S",
                  verbosity=0):
         self.verbosity = verbosity
+        self.dt_fmt = dt_fmt
         if logfilepath is None:
-            logfilepath = __name__ + "_" + Utilities.nowstr() + ".log"
+            logfilepath = __name__ + "_" + Utilities.nowstr(fmt=self.dt_fmt) + ".log"
         logger = logging.getLogger(__name__)
         logger.setLevel(logging.DEBUG)
 
@@ -773,19 +777,6 @@ class GitBack(object):
         Utilities.check_make_path(destroot, verbosity=verbosity)
 
         destfolder = os.sep.join(pp_destroot.parts[1:])
-
-        # orig_drive = pp_sourcefolder.drive
-        # orig_folder = os.sep.join(pp_sourcefolder.parts[1:])
-        if True:
-            pass
-            # metafilepath = Utilities.make_metafilepath(outdir=destfolder,
-            #                                           basename="backup_meta",
-            #                                           ext=".pickle",
-            #                                           verbosity=verbosity)
-            # metafilename = os.path.split(metafilepath)[1]
-
-            # with open(metafilepath, mode='wb') as meta_fp:
-            #    pickle.dump(ddict, meta_fp)
 
         # Walk the entire folder tree and compress the files in each folder.
 
@@ -1028,15 +1019,81 @@ class GitBack(object):
         # meta_fp.close()
         return 0
 
+    def find_files_in_backup(self,
+                             backuproot,
+                             filenames,
+                             origfolder=None,
+                             verbosity=0):
+        argdict = locals().copy()
+        verbosity = max(verbosity, self.verbosity)
+        logger = logging.getLogger(__name__)
+        if verbosity > 0:
+            msg = "{0} <{1}>".format(Utilities.whoami(), Utilities.now())
+            for key in argdict.keys():
+                msg += "\n  {0}: {1}".format(key, argdict[key])
+            logger.info(msg)
+        if filenames is None:
+            warnings.warn("filename is None")
+            return -1
+        if backuproot is None:
+            warnings.warn("backuproot is None")
+            return -1
+        if not os.path.isdir(backuproot):
+            warnings.warn("backuproot <{0}> not a dir".format(backuproot))
+            return -1
+
+        found_map = OrderedDict()
+        for filename in filenames:
+            found_list = self.find_file_in_backup(backuproot=backuproot,
+                                      target_filename=filename,
+                                      verbosity=0)
+            found_map[filename] = found_list
+        return found_map
+
+    def find_file_in_backup(self,
+                            backuproot,
+                            target_filename,
+                            origfolder = None,
+                            verbosity=0):
+        argdict = locals().copy()
+        verbosity = max(verbosity, self.verbosity)
+        logger = logging.getLogger(__name__)
+        if verbosity > 0:
+            msg = "{0} <{1}>".format(Utilities.whoami(), Utilities.now())
+            for key in argdict.keys():
+                msg += "\n  {0}: {1}".format(key, argdict[key])
+            logger.info(msg)
+        if target_filename is None:
+            warnings.warn("target_filename is None")
+            return -1
+        if backuproot is None:
+            warnings.warn("backuproot is None")
+            return -1
+        if not os.path.isdir(backuproot):
+            warnings.warn("backuproot <{0}> not a dir".format(backuproot))
+            return -1
+
+        pp_backuproot = PurePath(backuproot)
+        if not pp_backuproot.is_absolute():
+            logger.warning("backuproot must be absolute, {0}".format(backuproot))
+
+        found_list = []
+        for dirpath, dirnames, filenames in os.walk(backuproot, topdown=True):
+            #pp_dirpath = PurePath(dirpath)
+            # dirdrive = pp_dirpath.drive
+            #dirfolder = os.sep.join(pp_dirpath.parts[1:])
+            for dirname in dirnames:
+                dirfolder = os.path.join(dirpath, dirname)
+                if dirname == target_filename:
+                    files = [f for f in os.listdir(dirfolder) if os.path.isfile(os.path.join(dirfolder,f))]
+                    tup = (dirname, files)
+                    found_list.append(tup)
+        return found_list
+
     @staticmethod
     def recover(folder,
-                # meta_filename,
                 filelist,
                 outdir,
-                # create_outdir=False,
-                # chunk_size = 10**6,
-                # overwrite=False,
-                # testing=True,
                 verbosity=0):
         logger = logging.getLogger(__name__)
         if not os.path.isdir(folder):
@@ -1150,50 +1207,22 @@ if __name__ == "__main__":
     dest_drive = "G:\\"
 
     dest_folder = os.path.join(dest_drive, os.environ['COMPUTERNAME'])
-    logfilename = "backup_log" + "_" + Utilities.nowstr() + ".txt"
+    logfilename = "backup_log" + "_" + Utilities.nowshortstr() + ".txt"
     logfilepath = logfilename
 
     # create instance of class
     GB = GitBack(verbosity=1)
     # backup folders
-    res = GB.backup_folders(folders=bfolders,
+    if False:
+        res = GB.backup_folders(folders=bfolders,
                             dest_drive=dest_drive,
                             dest_folder=dest_folder,
                             exclude_folders=["zztemp"],
                             exclude_exts=['.exe'],
                             temp_folder="./zztemp",
                             verbosity=1)
-
-    # zipfilepath = os.path.join('F:\\', 'backup', 'temp_2021-01-22__10_42_13.zip')
-    # zfile = zipfile.ZipFile(zipfilepath, mode='r')
-    # zfile.filename
-    # zfile.getinfo(zfile.filename)
-
-    # GB.backup_folder()
-    # meta_folder = "backup"
-    # files = os.listdir(meta_folder)
-    # meta_files = [f for f in files if f.endswith("pickle")]
-
-    meta_folder = "backup"
-    files = os.listdir(meta_folder)
-    meta_files = [f for f in files if f.endswith("pickle")]
-    meta_filename = meta_files[0]
-
-
-    # logger.info_meta_info(folder=meta_folder, filename=meta_filename, fields=[''])
-    meta_fields = Utilities.get_meta_fields(meta_folder, meta_filename)
-
-    minfo = Utilities.get_meta_info(folder=meta_folder, filename=meta_filename, meta_fields=None,
-                                  file_info_fields=['filename', 'zipname', 'orig_size'])
-    logger.info(minfo)
-
-    # GB.recover(folder=meta_folder, meta_filename=meta_filename,
-    #           filelist=['mail-loop.PNG'],
-    #           outdir='recovered', create_outdir=True,
-    #           overwrite=True, testing=False, verbosity=1)
-
-    if 'verb' in locals().keys():
-        meta_filename = "backup_meta_1.pickle"
-        meta_folder = "backup"
-        #meta = Utilities.import_backup_metafile(folder=meta_folder, filename=meta_filename)
+    backuproot = os.path.join(dest_drive, dest_folder)
+    res = GB.find_files_in_backup(backuproot=backuproot,
+                                  filenames=['addenv.bat'])
+    print(res)
 
