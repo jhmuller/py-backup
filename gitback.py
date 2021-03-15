@@ -690,12 +690,12 @@ class GitBack(object):
                 raise PermissionError(msg)
             except Exception as e:
                 msg = Utilities.last_exception_info(verbose=verbosity)
+                logger.error(msg)
                 warnings.warn(e)
                 raise RuntimeError(msg)
             else:
                 msg = "Seems ok {0}".format(datetime.datetime.now())
-            with open(logfilepath, mode="a") as fp:
-                fp.write(msg)
+                logger.info(msg)
         return 0
 
     def backup_folder(self, sourceroot,
@@ -935,11 +935,15 @@ class GitBack(object):
                 try:
                     shutil.copy2(infilepath, dest_file_path)
                 except OSError as oe:
-                    errmsg = Utilities.last_exception_info()
+                    errmsg = "infilepath: {0}\n dest_file_path: {1}".format(infilepath,
+                                                                            dest_file_path)
+                    errmsg += Utilities.last_exception_info()
                     logger.info(errmsg)
                     raise OSError(oe)
                 except Exception as exc:
-                    errmsg = Utilities.last_exception_info()
+                    errmsg = "infilepath: {0}\n dest_file_path: {1}".format(infilepath,
+                                                                            dest_file_path)
+                    errmsg += Utilities.last_exception_info()
                     logger.info(errmsg)
                     raise RuntimeError(exc)
 
@@ -1213,7 +1217,47 @@ if __name__ == "__main__":
     # create instance of class
     GB = GitBack(verbosity=1)
     # backup folders
-    if False:
+    if True:
+
+        bfolders = [
+            # os.path.join("C:\\", "dev"),
+            # os.path.join("C:\\", "Users", os.getenv("USERNAME"), "OneDrive", "dev"),
+            # os.path.join("C:\\", "Users", os.getenv("USERNAME"), "enter1"),
+            # os.path.join("C:\\", "Users", os.getenv("USERNAME"), "enter2"),
+            # os.path.join("C:\\", "Users", os.getenv("USERNAME"), "OneDrive", "Desktop"),
+            # os.path.join("C:\\", "Users", os.getenv("USERNAME"), "OneDrive", "Documents"),
+            # os.path.join("C:\\", "Users", os.getenv("USERNAME"), "OneDrive", "Pictures"),
+            os.path.join("C:\\", "dev"),
+            os.path.join("C:\\", "jmuller"),
+            os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Documents"),
+            os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Downloads"),
+            os.path.join("C:\\", "Users", os.getenv("USERNAME"), "dev"),
+            os.path.join("C:\\", "Users", os.getenv("USERNAME"), "enter2"),
+            os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Pictures"),
+            os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Videos"),
+            os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Music"),
+        ]
+
+        drives_df = Utilities.drives()
+        drives_df
+
+        pname = "assport"
+        ppdrive = drives_df.loc[drives_df["dname"].str.contains(pname)]
+        print(ppdrive.shape)
+        bdrive = None
+        if ppdrive.shape[0] == 1:
+            bdrive = ppdrive["drive"].values[0]
+            print("found passport drive {0}".format(bdrive))
+        else:
+            msg = "can't find with {0} in the name ".format(pname)
+            warnings.warn(msg)
+
+        dest_drive = bdrive
+        dest_folder = os.path.join(dest_drive, os.environ['COMPUTERNAME'])
+        logfilename = "backup_log" + "_" + Utilities.nowshortstr() + ".txt"
+        logfilepath = logfilename
+        print("dest folder= {0}".format(dest_folder))
+
         res = GB.backup_folders(folders=bfolders,
                             dest_drive=dest_drive,
                             dest_folder=dest_folder,
