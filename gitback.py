@@ -3,6 +3,7 @@
 import os
 import sys
 import datetime
+import time
 import inspect
 import warnings
 import traceback
@@ -83,7 +84,7 @@ class Utilities(object):
         return datetime.datetime.now()
 
     @staticmethod
-    def nowshortstr(fmt="%Y%m%d_%H%M%S"):
+    def nowshortstr(fmt="%Y%m%d_%H%M%S%f"):
         return datetime.datetime.now().strftime(fmt)
 
     @staticmethod
@@ -373,7 +374,7 @@ class Utilities(object):
                           max_attempts=10,
                           exist_ok=True,
                           verbosity=0):
-        if verbosity > 0:
+        if verbosity > 1:
             print("{0} {1}".format(Utilities.whoami(), Utilities.now()))
             print("folder len {0}, folner name: {1}".format(len(folder), folder))
         filepath = None
@@ -608,7 +609,8 @@ class GitBack(object):
         ch.setLevel(logging.DEBUG)
 
         # create formatter
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        #formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        formatter = logging.Formatter('%(levelname)s - %(message)s')
 
         # add formatter to ch
         ch.setFormatter(formatter)
@@ -800,7 +802,7 @@ class GitBack(object):
 
             for filename in filenames:
                 try:
-                    if verbosity > 0:
+                    if verbosity > 1:
                         msg = "filename: {0}, dirpath: {1}".format(filename, dirpath)
                         logger.info(msg)
                     file_base, file_ext = os.path.splitext(filename)
@@ -864,8 +866,8 @@ class GitBack(object):
                 try:
                     if found_sha_match:
                         # then the same contents are already there
-                        msg = "no need to backup {0}, {1} there with same contents".format(filename, dfile)
-                        if verbosity > 0:
+                        if verbosity > 1:
+                            msg = "no need to backup {0}, {1} there with same contents".format(filename, dfile)
                             logger.info(msg)
                         continue
                     # at this point we need to backup
@@ -891,8 +893,8 @@ class GitBack(object):
                             msg = "Uh-Oh, {0} elements in zipfile {1}".format(nzipelems, zipfilepath)
                             logger.warning(msg)
                         zfile.close()
-                        return zipfilepath
-                    zipfilepath = zipit(sourcepath, tempfolder, verbosity=verbosity)
+                        return zipfilepath, zfile
+                    zipfilepath, zfile = zipit(sourcepath, tempfolder, verbosity=verbosity)
                     orig_size = os.path.getsize(sourcepath)
                     comp_size = os.path.getsize(zipfilepath)
                     comp_ratio = np.nan
@@ -934,6 +936,7 @@ class GitBack(object):
                     # copy source to destination
                 try:
                     shutil.copy2(infilepath, dest_file_path)
+
                 except OSError as oe:
                     errmsg = "infilepath: {0}\n dest_file_path: {1}".format(infilepath,
                                                                             dest_file_path)
@@ -997,19 +1000,32 @@ class GitBack(object):
                         msg += "\n infilepath: {0} dest folder: {1}".format(infilepath, this_dest_folder)
                         # logger.info("sha_256= {0}".format(ddict['sha256']))
                         logger.info(msg)
-
-                    if compressed:
-                        # remove the temporary zipfile
-                        if os.path.isfile(zipfilepath):
-                            try:
-                                os.remove(zipfilepath)
-                            except Exception as e:
-                                msg = Utilities.last_exception_info()
-                                logger.warning(msg)
-                                raise RuntimeError(e)
-                        else:
-                            msg = "can't find zipfile {0}".format(zipfilepath)
-                            raise RuntimeError(msg)
+                    # remove the temporary zipfile
+                    if os.path.isfile(zipfilepath):
+                        try:
+                            # wait until file fully copied
+                            source_size = os.path.getsize(infilepath)
+                            dest_size = os.path.getsize(dest_file_path)
+                            tries = 0
+                            while dest_size < source_size:
+                                dest_size = os.path.getsize(dest_file_path)
+                                tries += 1
+                                if tries > 20:
+                                    break
+                                time.sleep(0.01)
+                            if dest_size > source_size:
+                                msg = " {0} tries checking on file, dest not written".format(tries)
+                                raise RuntimeError(msg)
+                            os.remove(zipfilepath)
+                        except Exception as e:
+                            msg = "\n  Problem removing zipfile: {0}".format(zipfilepath)
+                            msg += "\n zfile: {0}".format(zfile)
+                            msg += Utilities.last_exception_info()
+                            logger.warning(msg)
+                            raise RuntimeError(e)
+                    else:
+                        msg = "can't find zipfile {0}".format(zipfilepath)
+                        raise RuntimeError(msg)
                 except OSError as oe:
                     errmsg = Utilities.last_exception_info()
                     logger.info(errmsg)
