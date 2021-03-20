@@ -1291,38 +1291,18 @@ if __name__ == "__main__":
     Utils = Utilities()
     warnings.formatwarning = Utils.warning_on_one_line
     # initialize parameters
-    bfolders = [
-                # os.path.join("C:\\", "dev"),
-                # os.path.join("C:\\", "Users", os.getenv("USERNAME"), "OneDrive", "dev"),
-                # os.path.join("C:\\", "Users", os.getenv("USERNAME"), "enter1"),
-                # os.path.join("C:\\", "Users", os.getenv("USERNAME"), "enter2"),
-                # os.path.join("C:\\", "Users", os.getenv("USERNAME"), "OneDrive", "Desktop"),
-                #os.path.join("C:\\", "Users", os.getenv("USERNAME"), "OneDrive", "Documents"),
-                # os.path.join("C:\\", "Users", os.getenv("USERNAME"), "OneDrive", "Pictures"),
-                os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Documents"),
-                os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Downloads"),
-                os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Videos"),
-                os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Music"),
-                ]
-    dest_drive = "G:\\"
-
-    dest_folder = os.path.join(dest_drive, os.environ['COMPUTERNAME'])
-    logfilename = "backup_log" + "_" + Utilities.nowshortstr() + ".txt"
-    logfilepath = logfilename
-
-    # create instance of class
-    GB = GitBack(verbosity=1)
-    # backup folders
-    if True:
-
+    # for new lenovo
+    computer_name = os.environ['COMPUTERNAME']
+    if computer_name.upper() == "LENOVO-LEGION":
         bfolders = [
-            # os.path.join("C:\\", "dev"),
-            # os.path.join("C:\\", "Users", os.getenv("USERNAME"), "OneDrive", "dev"),
-            # os.path.join("C:\\", "Users", os.getenv("USERNAME"), "enter1"),
-            # os.path.join("C:\\", "Users", os.getenv("USERNAME"), "enter2"),
-            # os.path.join("C:\\", "Users", os.getenv("USERNAME"), "OneDrive", "Desktop"),
-            # os.path.join("C:\\", "Users", os.getenv("USERNAME"), "OneDrive", "Documents"),
-            # os.path.join("C:\\", "Users", os.getenv("USERNAME"), "OneDrive", "Pictures"),
+                    os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Downloads"),
+                    os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Videos"),
+                    os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Music"),
+                    os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Documents"),
+
+                    ]
+    elif re.search("hp_small", computer_name):
+        bfolders = [
             os.path.join("C:\\", "dev"),
             os.path.join("C:\\", "jmuller"),
             os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Documents"),
@@ -1333,34 +1313,42 @@ if __name__ == "__main__":
             os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Videos"),
             os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Music"),
         ]
+        bfolders = [
+            # os.path.join("C:\\", "dev"),
+            # os.path.join("C:\\", "Users", os.getenv("USERNAME"), "OneDrive", "dev"),
+            # os.path.join("C:\\", "Users", os.getenv("USERNAME"), "enter1"),
+            # os.path.join("C:\\", "Users", os.getenv("USERNAME"), "enter2"),
+            # os.path.join("C:\\", "Users", os.getenv("USERNAME"), "OneDrive", "Desktop"),
+            # os.path.join("C:\\", "Users", os.getenv("USERNAME"), "OneDrive", "Documents"),
+            # os.path.join("C:\\", "Users", os.getenv("USERNAME"), "OneDrive", "Pictures"),
+            os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Documents"),
+            os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Downloads"),
+            os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Videos"),
+            os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Music"),
+        ]
+    dest_drive = "G:\\"
 
-        drives_df = Utilities.drives()
-        drives_df
+    dest_folder = os.path.join(dest_drive, os.environ['COMPUTERNAME'])
+    logfilename = "backup_log" + "_" + Utilities.nowshortstr() + ".txt"
+    logfilepath = logfilename
 
-        pname = "assport"
-        ppdrive = drives_df.loc[drives_df["dname"].str.contains(pname)]
-        print(ppdrive.shape)
-        bdrive = None
-        if ppdrive.shape[0] == 1:
-            bdrive = ppdrive["drive"].values[0]
-            print("found passport drive {0}".format(bdrive))
-        else:
-            msg = "can't find with {0} in the name ".format(pname)
-            warnings.warn(msg)
+    # create instance of class
+    GB = GitBack(verbosity=1)
+    # backup folders
 
-        dest_drive = bdrive
-        dest_folder = os.path.join(dest_drive, os.environ['COMPUTERNAME'])
-        logfilename = "backup_log" + "_" + Utilities.nowshortstr() + ".txt"
-        logfilepath = logfilename
-        print("dest folder= {0}".format(dest_folder))
+    dest_drive = "G://"
+    dest_folder = os.path.join(dest_drive, os.environ['COMPUTERNAME'])
+    logfilename = "backup_log" + "_" + Utilities.nowshortstr() + ".txt"
+    logfilepath = logfilename
+    print("dest folder= {0}".format(dest_folder))
 
-        res = GB.backup_folders(folders=bfolders,
-                            dest_drive=dest_drive,
-                            dest_folder=dest_folder,
-                            exclude_folders=["zztemp"],
-                            exclude_exts=['.exe'],
-                            temp_folder="./zztemp",
-                            verbosity=1)
+    res = GB.backup_folders(folders=bfolders,
+                        dest_drive=dest_drive,
+                        dest_folder=dest_folder,
+                        exclude_folders=["zztemp"],
+                        exclude_exts=['.exe'],
+                        temp_folder="./zztemp",
+                        verbosity=1)
     backuproot = os.path.join(dest_drive, dest_folder)
     res = GB.find_files_in_backup(backuproot=backuproot,
                                   filenames=['addenv.bat'])
