@@ -22,16 +22,7 @@ from collections import namedtuple
 import subprocess
 from subprocess import Popen, PIPE
 print("python exe: {0}".format(sys.executable))
-cmds = [
-        ["hostname"],
-       ]
-for cmd in cmds:
-    print("cmd= {0}".format(cmd))
-    proc =  Popen(cmd, stdout=PIPE)
-    stdout, err = proc.communicate()
-    print(stdout)
-
-import win32api
+# import win32api
 
 
 __version__ = "0.1.1"
@@ -177,18 +168,17 @@ class Utilities(object):
     
     @staticmethod
     def drives(verbosity=0):
-        if verbosity > 0:
-            print("{0} {1}".format(Utilities.whoami(), Utilities.now()))
+        raise RuntimeError("No longer supported")
         fields = ["drive", "dname", "message"]
         DriveTup = namedtuple("DriveTup", fields)
         dlist = []
-        drive_strings = win32api.GetLogicalDriveStrings()
+        drive_strings = None # win32api.GetLogicalDriveStrings()
         drives = drive_strings.split('\000')[:-1]
         for drive in drives:
             dname = None
             msg = ''
             try:
-                dname = win32api.GetVolumeInformation(drive)[0]
+                dname = None # win32api.GetVolumeInformation(drive)[0]
             except Exception as e:
                 msg = str(e)
             dt = DriveTup(drive, dname, msg)
@@ -1295,6 +1285,9 @@ if __name__ == "__main__":
     computer_name = os.environ['COMPUTERNAME']
     if computer_name.upper() == "LENOVO-LEGION":
         bfolders = [
+                    os.path.join("C:\\", "Users", os.getenv("USERNAME"), "OneDrive", "Desktop"),
+                    os.path.join("C:\\", "Users", os.getenv("USERNAME"), "OneDrive", "Documents"),
+                    os.path.join("C:\\", "Users", os.getenv("USERNAME"), "OneDrive", "Pictures"),
                     os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Downloads"),
                     os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Videos"),
                     os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Music"),
