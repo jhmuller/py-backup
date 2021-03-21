@@ -62,7 +62,7 @@ class Utilities(object):
 
     @staticmethod
     def username():
-        return os.getenv("USERNAME")
+        return username
 
     @staticmethod
     def os_whoami():
@@ -239,7 +239,7 @@ class Utilities(object):
                 fmode='rb',# default is text mode
                 encoding=None,
                 size=4096):
-        logger = logging.getLogger(__name__)
+        logger = logging.getLogger(__file__)
         m = hashlib.sha256()
         try:
             lastchunk = None
@@ -402,7 +402,7 @@ class Utilities(object):
             filename = base + sep + Utilities.nowshortstr() + ext
             filepath = os.path.join(folder, filename)
             if len(filepath) > 250:
-                logger = logging.getLogger(__name__)
+                logger = logging.getLogger(__file__)
                 msg = "filepath len= {0}".len(filepath)
                 msg += "\n base= {0}".format(base)
                 base = re.sub(" ","",base)
@@ -615,7 +615,7 @@ class GitBack(object):
         self.dt_fmt = dt_fmt
         if logfilepath is None:
             logfilepath = __name__ + "_" + Utilities.nowstr(fmt=self.dt_fmt) + ".log"
-        logger = logging.getLogger(__name__)
+        logger = logging.getLogger(__file__)
         logger.setLevel(logging.DEBUG)
 
         # create console handler and set level to debug
@@ -657,7 +657,7 @@ class GitBack(object):
 
         ldict = locals()
         verbosity = max(self.verbosity, verbosity)
-        logger = logging.getLogger(__name__)
+        logger = logging.getLogger(__file__)
         Utilities.check_folders(folders)
         errmsg = ''
         req_param_types = {"folders": list,
@@ -745,7 +745,7 @@ class GitBack(object):
         """
         argdict = locals().copy()
         verbosity = max(verbosity, self.verbosity)
-        logger = logging.getLogger(__name__)
+        logger = logging.getLogger(__file__)
         if verbosity > 0:
             msg = "{0} <{1}>".format(Utilities.whoami(), Utilities.now())
             for key in argdict.keys():
@@ -1116,7 +1116,7 @@ class GitBack(object):
                              verbosity=0):
         argdict = locals().copy()
         verbosity = max(verbosity, self.verbosity)
-        logger = logging.getLogger(__name__)
+        logger = logging.getLogger(__file__)
         if verbosity > 0:
             msg = "{0} <{1}>".format(Utilities.whoami(), Utilities.now())
             for key in argdict.keys():
@@ -1147,7 +1147,7 @@ class GitBack(object):
                             verbosity=0):
         argdict = locals().copy()
         verbosity = max(verbosity, self.verbosity)
-        logger = logging.getLogger(__name__)
+        logger = logging.getLogger(__file__)
         if verbosity > 0:
             msg = "{0} <{1}>".format(Utilities.whoami(), Utilities.now())
             for key in argdict.keys():
@@ -1185,7 +1185,7 @@ class GitBack(object):
                 filelist,
                 outdir,
                 verbosity=0):
-        logger = logging.getLogger(__name__)
+        logger = logging.getLogger(__file__)
         if not os.path.isdir(folder):
             logger.warning("{0} is not a folder".format(folder))
             return None
@@ -1280,60 +1280,65 @@ def get_fname(i=1):
 if __name__ == "__main__":
     Utils = Utilities()
     warnings.formatwarning = Utils.warning_on_one_line
+    logger = logging.getLogger(__file__)
+
     # initialize parameters
     # for new lenovo
-    computer_name = os.environ['COMPUTERNAME']
-    if computer_name.upper() == "LENOVO-LEGION":
+    computername = os.getenv("COMPUTERNAME")
+    if computername is None:
+        logger.error("no computer name")
+        exit(-1)
+        
+    username = os.getenv("USERNAME")
+    if username is None:
+        logger.error("no user name")
+        exit(-1)
+    
+    if computername.upper() == "LENOVO-LEGION":
         bfolders = [
-                    os.path.join("C:\\", "Users", os.getenv("USERNAME"), "OneDrive", "Desktop"),
-                    os.path.join("C:\\", "Users", os.getenv("USERNAME"), "OneDrive", "Documents"),
-                    os.path.join("C:\\", "Users", os.getenv("USERNAME"), "OneDrive", "Pictures"),
-                    os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Downloads"),
-                    os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Videos"),
-                    os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Music"),
-                    os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Documents"),
+                    os.path.join("C:\\", "Users", username, "OneDrive", "Desktop"),
+                    os.path.join("C:\\", "Users", username, "OneDrive", "Documents"),
+                    os.path.join("C:\\", "Users", username, "OneDrive", "Pictures"),
+                    os.path.join("C:\\", "Users", username, "Downloads"),
+                    os.path.join("C:\\", "Users", username, "Videos"),
+                    os.path.join("C:\\", "Users", username, "Music"),
+                    os.path.join("C:\\", "Users", username, "Documents"),
 
                     ]
     elif re.search("hp_small", computer_name):
         bfolders = [
             os.path.join("C:\\", "dev"),
             os.path.join("C:\\", "jmuller"),
-            os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Documents"),
-            os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Downloads"),
-            os.path.join("C:\\", "Users", os.getenv("USERNAME"), "dev"),
-            os.path.join("C:\\", "Users", os.getenv("USERNAME"), "enter2"),
-            os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Pictures"),
-            os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Videos"),
-            os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Music"),
+            os.path.join("C:\\", "Users", username, "Documents"),
+            os.path.join("C:\\", "Users", username, "Downloads"),
+            os.path.join("C:\\", "Users", username, "dev"),
+            os.path.join("C:\\", "Users", username, "enter2"),
+            os.path.join("C:\\", "Users", username, "Pictures"),
+            os.path.join("C:\\", "Users", username, "Videos"),
+            os.path.join("C:\\", "Users", username, "Music"),
         ]
         bfolders = [
             # os.path.join("C:\\", "dev"),
-            # os.path.join("C:\\", "Users", os.getenv("USERNAME"), "OneDrive", "dev"),
-            # os.path.join("C:\\", "Users", os.getenv("USERNAME"), "enter1"),
-            # os.path.join("C:\\", "Users", os.getenv("USERNAME"), "enter2"),
-            # os.path.join("C:\\", "Users", os.getenv("USERNAME"), "OneDrive", "Desktop"),
-            # os.path.join("C:\\", "Users", os.getenv("USERNAME"), "OneDrive", "Documents"),
-            # os.path.join("C:\\", "Users", os.getenv("USERNAME"), "OneDrive", "Pictures"),
-            os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Documents"),
-            os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Downloads"),
-            os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Videos"),
-            os.path.join("C:\\", "Users", os.getenv("USERNAME"), "Music"),
+            # os.path.join("C:\\", "Users", username, "OneDrive", "dev"),
+            # os.path.join("C:\\", "Users", username, "enter1"),
+            # os.path.join("C:\\", "Users", username, "enter2"),
+            # os.path.join("C:\\", "Users", username, "OneDrive", "Desktop"),
+            # os.path.join("C:\\", "Users", username, "OneDrive", "Documents"),
+            # os.path.join("C:\\", "Users", username, "OneDrive", "Pictures"),
+            os.path.join("C:\\", "Users", username, "Documents"),
+            os.path.join("C:\\", "Users", username, "Downloads"),
+            os.path.join("C:\\", "Users", username, "Videos"),
+            os.path.join("C:\\", "Users", username, "Music"),
         ]
     dest_drive = "G:\\"
 
-    dest_folder = os.path.join(dest_drive, os.environ['COMPUTERNAME'])
-    logfilename = "backup_log" + "_" + Utilities.nowshortstr() + ".txt"
-    logfilepath = logfilename
-
-    # create instance of class
-    GB = GitBack(verbosity=1)
-    # backup folders
-
-    dest_drive = "G://"
-    dest_folder = os.path.join(dest_drive, os.environ['COMPUTERNAME'])
+    dest_folder = os.path.join(dest_drive, computername)
     logfilename = "backup_log" + "_" + Utilities.nowshortstr() + ".txt"
     logfilepath = logfilename
     print("dest folder= {0}".format(dest_folder))
+
+    # create instance of class
+    GB = GitBack(verbosity=1)
 
     res = GB.backup_folders(folders=bfolders,
                         dest_drive=dest_drive,
