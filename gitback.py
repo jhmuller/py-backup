@@ -1338,16 +1338,15 @@ if __name__ == "__main__":
 
     # create instance of class
     GB = GitBack(verbosity=1)
-
-    res = GB.backup_folders(folders=bfolders,
-                        dest_drive=dest_drive,
-                        dest_folder=dest_folder,
-                        exclude_folders=["zztemp"],
-                        exclude_exts=['.exe'],
-                        temp_folder="./zztemp",
-                        verbosity=1)
-    backuproot = os.path.join(dest_drive, dest_folder)
-    res = GB.find_files_in_backup(backuproot=backuproot,
+    if False:
+        res = GB.backup_folders(folders=bfolders,
+                                dest_drive=dest_drive,
+                                dest_folder=dest_folder,
+                                exclude_folders=["zztemp"],
+                                exclude_exts=['.exe'],
+                                temp_folder="./zztemp",
+                                verbosity=1)
+        backuproot = os.path.join(dest_drive, dest_folder)
+        res = GB.find_files_in_backup(backuproot=backuproot,
                                   filenames=['addenv.bat'])
-    print(res)
-
+    print("Done")
