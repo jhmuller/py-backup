@@ -14,11 +14,11 @@ import pickle
 import shutil
 import re
 import logging
-import pandas as pd
-from pathlib import PurePath
+import subprocess
 from collections import OrderedDict
 from collections import namedtuple
-import subprocess
+from pathlib import PurePath
+import pandas as pd
 from subprocess import Popen, PIPE
 print("python exe: {0}".format(sys.executable))
 # import win32api
