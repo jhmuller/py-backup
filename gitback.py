@@ -15,7 +15,6 @@ import shutil
 import re
 import logging
 import pandas as pd
-import numpy as np
 from pathlib import PurePath
 from collections import OrderedDict
 from collections import namedtuple
@@ -1284,12 +1283,12 @@ if __name__ == "__main__":
 
     # initialize parameters
     # for new lenovo
-    computername = os.getenv("COMPUTERNAME")
+    computername = str(os.getenv("COMPUTERNAME"))
     if computername is None:
         logger.error("no computer name")
         exit(-1)
         
-    username = os.getenv("USERNAME")
+    username = str(os.getenv("USERNAME"))
     if username is None:
         logger.error("no user name")
         exit(-1)
