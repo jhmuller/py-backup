@@ -398,11 +398,12 @@ class Utilities(object):
                 raise RuntimeError(e)
         attempt = 0
         while attempt < max_attempts:
-            filename = base + sep + Utilities.nowshortstr() + ext
+            #filename = base + sep + Utilities.nowshortstr() + ext
+            filename = Utilities.nowshortstr() + ext
             filepath = os.path.join(folder, filename)
-            if len(filepath) > 250:
+            if len(filepath) > 260:
                 logger = logging.getLogger(__file__)
-                msg = "filepath len= {0}".len(filepath)
+                msg = "filepath len= {0}".format(len(filepath))
                 msg += "\n base= {0}".format(base)
                 base = re.sub(" ","",base)
                 msg += "newbase= {0}".format(base)
@@ -707,7 +708,7 @@ class GitBack(object):
                 msg = Utilities.last_exception_info(verbose=verbosity)
                 logger.error(msg)
                 warnings.warn(e)
-                raise RuntimeError(msg)
+                #raise RuntimeError(msg)
             else:
                 msg = "Seems ok {0}".format(datetime.datetime.now())
                 logger.info(msg)
@@ -1338,7 +1339,7 @@ if __name__ == "__main__":
 
     # create instance of class
     GB = GitBack(verbosity=1)
-    if False:
+    if True:
         res = GB.backup_folders(folders=bfolders,
                                 dest_drive=dest_drive,
                                 dest_folder=dest_folder,
