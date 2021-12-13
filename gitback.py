@@ -33,23 +33,25 @@ __version__ = "0.1.1"
 # warnings.formatwarning = lambda message, category, filename, lineno, line=None: \
 #    formatwarning_orig(message, category, filename, lineno, line='')
 
-#The background is set with 40 plus the number of the color, and the foreground with 30
+# The background is set with 40 plus the number of the color, and the foreground with 30
 
 BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE = range(8)
 
-#The background is set with 40 plus the number of the color, and the foreground with 30
 
-#These are the sequences need to get colored ouput
+# The background is set with 40 plus the number of the color, and the foreground with 30
+# These are the sequences need to get colored ouput
 RESET_SEQ = "\033[0m"
 COLOR_SEQ = "\033[1;%dm"
 BOLD_SEQ = "\033[1m"
 
-def formatter_message(message, use_color = True):
+
+def formatter_message(message, use_color=False):
     if use_color:
         message = message.replace("$RESET", RESET_SEQ).replace("$BOLD", BOLD_SEQ)
     else:
         message = message.replace("$RESET", "").replace("$BOLD", "")
     return message
+
 
 COLORS = {
     'WARNING': YELLOW,
@@ -59,8 +61,10 @@ COLORS = {
     'ERROR': RED
 }
 
+
+# noinspection SpellCheckingInspection
 class ColoredFormatter(logging.Formatter):
-    def __init__(self, msg, use_color = True):
+    def __init__(self, msg, use_color=False):
         logging.Formatter.__init__(self, msg)
         self.use_color = use_color
 
@@ -71,10 +75,12 @@ class ColoredFormatter(logging.Formatter):
             record.levelname = levelname_color
         return logging.Formatter.format(self, record)
 
+
 # Custom logger class with multiple destinations
 class ColoredLogger(logging.Logger):
     FORMAT = "[$BOLD%(name)-20s$RESET][%(levelname)-18s]  %(message)s ($BOLD%(filename)s$RESET:%(lineno)d)"
     COLOR_FORMAT = formatter_message(FORMAT, True)
+
     def __init__(self, name):
         logging.Logger.__init__(self, name, logging.DEBUG)
 
@@ -109,6 +115,7 @@ txt_effects["bold"] = "\033[1m"
 txt_effects["underline"] = "\033[4m"
 txt_effects["blackback"] = "\033[7m"
 
+
 class CustomFormatter(logging.Formatter):
     """Logging Formatter to add colors and count warning / errors"""
 
@@ -133,6 +140,8 @@ class CustomFormatter(logging.Formatter):
         formatter = logging.Formatter(log_fmt)
         return formatter.format(record)
 
+
+# noinspection SpellCheckingInspection,PyProtectedMember,PyIncorrectDocstring,PyShadowingNames
 class Utilities(object):
     def __init__(self):
         pass
@@ -211,7 +220,7 @@ class Utilities(object):
     @staticmethod
     def nowshortstr(fmt="%Y%m%d_%H%M%S"):
         now = datetime.datetime.now()
-        res = now.strftime(fmt) + "_" + str(now.microsecond %  10000)
+        res = now.strftime(fmt) + "_" + str(now.microsecond %  100)
         return res
 
     @staticmethod
@@ -298,7 +307,7 @@ class Utilities(object):
         return extype, exval, tb
 
     @staticmethod
-    def last_exception_info(verbose=0):
+    def last_exception_info(color=False, verbose=0):
         '''
         returns a string with info about the last exception
         :param verbose:
@@ -313,7 +322,9 @@ class Utilities(object):
         lines = traceback.format_list(tblist)
         for i, line in enumerate(lines):
             msg += "\n[{0}] {1}".format(i, line)
-        result = Utilities.color_str(msg, txt_color="red")
+        result = msg
+        if color:
+            result = Utilities.color_str(msg, txt_color="red")
         return result
     
     @staticmethod
@@ -388,7 +399,7 @@ class Utilities(object):
 
     @staticmethod
     def sha_256(fpath,
-                fmode='rb',# default is text mode
+                fmode='rb',
                 encoding=None,
                 size=4096):
         logger = logging.getLogger(__file__)
@@ -454,25 +465,30 @@ class Utilities(object):
                        compresslevel=zlib.Z_DEFAULT_COMPRESSION,
                        verbosity=0):
         if verbosity > 0:
-            print("{0} {1}".format(Utilities.whoami(), Utilities.now()))
-        if verbosity > 1:
-            print("creating zipfile {0} from {1} <{2}>".format(infilepath, zipfilepath,
-                                                               datetime.datetime.now()))
-        zf = zipfile.ZipFile(zipfilepath, mode='w', compression=compression,
-                             compresslevel=compresslevel)
+            msg = f"{Utilities.whoami()}, {Utilities.now()}"
+            msg += f"creating zipfile {zipfilepath} from {infilepath} <{datetime.datetime.now()}>"
+            logger = logging.getLogger(__file__)
+            logger.info(msg)
+
         try:
+            zf = zipfile.ZipFile(zipfilepath, mode='w', compression=compression,
+                                 compresslevel=compresslevel)
             if verbosity > 1:
                 print("adding {0}".format(infilepath))
             zf.write(infilepath)
+        except PermissionError:
+            msg = f"{infilepath}"
+            msg += Utilities.last_exception_info()
+            print(msg)
+            return -2
         except Exception as e:
-            zf.close()
-            msg = "infilepath= {0}".format(infilepath)
+            msg = f"{infilepath}"
             msg += Utilities.last_exception_info()
             print(msg)
             raise RuntimeError(msg)
         finally:
-            if verbosity > 1:
-                print('Done, closing <{0}>'.format(datetime.datetime.now()))
+            if verbosity > 0:
+                print(f'Done, closing {zipfilepath} <{datetime.datetime.now()}')
             zf.close()
         return zf
 
@@ -515,8 +531,10 @@ class Utilities(object):
                           verbosity=0):
         # Figure out the filename this code should used based on
         # what files already exist.
-        if verbosity > 0:
-            print("{0} {1}".format(Utilities.whoami(), Utilities.now()))
+        if verbosity > 1:
+            msg = f"{Utilities.whoami()} {Utilities.now()}"
+            logger = logging.getLogger(__file__)
+            logger.info(msg)
         while True:
             outfilename = basename + sep + Utilities.nowshortstr() + ext
             if not os.path.exists(outfilename):
@@ -533,12 +551,12 @@ class Utilities(object):
                           exist_ok=True,
                           verbosity=0):
         if verbosity > 1:
-            print("{0} {1}".format(Utilities.whoami(), Utilities.now()))
-            print("folder len {0}, folner name: {1}".format(len(folder), folder))
+            msg = f"{Utilities.whoami()} {Utilities.now()}"
+            msg += f"  folder: {folder}, ext: {ext}  base: {base}, exist_ok  {exist_ok}"
+            logger = logging.getLogger(__file__)
+            logger.info(msg)
 
         if not os.path.isdir(folder):
-            if verbosity > 2:
-                print("trying to make folder {0}".format(folder))
             try:
                 os.makedirs(folder, exist_ok=exist_ok)
             except FileNotFoundError as fe:
@@ -715,10 +733,9 @@ class Utilities(object):
                       tempname="temp",
                       verbosity=0):
         if verbosity > 0:
-            ldict = locals()
-            msg = "{0} <{1}>".format(Utilities.whoami(), Utilities.now())
-            for key in ldict.keys():
-                print("{0}: {1}".format(key, ldict[key]))
+            msg = f"{Utilities.whoami()} {zipfilepath}  {Utilities.now()}"
+            logger = logging.getLogger(__file__)
+            logger.info(msg)
 
         if tempfolder is None:
             tempfolder = os.path.split(zipfilepath)[0]
@@ -727,7 +744,7 @@ class Utilities(object):
 
         tempname = tempname + Utilities.nowshortstr()
         temppath = os.path.join(tempfolder, tempname)
-        if  os.path.isfile(temppath):
+        if os.path.isfile(temppath):
             msg = "Found temp file {0} in {1}\n try another".format(tempname, zpath)
 
         zinfolist = zfile.infolist()
@@ -743,13 +760,17 @@ class Utilities(object):
             epath = zfile.extract(member=zipname,
                           path=temppath, pwd=None)
         except Exception as e:
-            Utilities.last_exception_info()
+            msg = Utilities.last_exception_info()
+            print(msg)
             raise Exception(e)
         finally:
-            zfile.close()
+            if verbosity > 0:
+                res = zfile.close()
+                print(f" closed {zipfilepath}  {res}")
         return epath
 
 
+# noinspection SpellCheckingInspection,SpellCheckingInspection,PyShadowingNames,PyBroadException
 class GitBack(object):
     def __init__(self,
                  logfilepath=None,
@@ -767,7 +788,7 @@ class GitBack(object):
         # create console handler and set level to debug
         ch = logging.StreamHandler()
         ch.setLevel(logging.DEBUG)
-        ch.setFormatter(CustomFormatter())
+        #ch.setFormatter(CustomFormatter())
         # create formatter
         #formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         #formatter = logging.Formatter('%(levelname)s - %(message)s')
@@ -851,7 +872,6 @@ class GitBack(object):
                 msg = Utilities.last_exception_info(verbose=verbosity)
                 logger.error(msg)
                 warnings.warn(e)
-                #raise RuntimeError(msg)
             else:
                 msg = "Seems ok {0}".format(datetime.datetime.now())
                 logger.info(msg)
@@ -859,17 +879,31 @@ class GitBack(object):
 
     @staticmethod
     def clean_temp_folder(tempfolder, verbosity=0):
+        logger = logging.getLogger(__file__)
+        if verbosity > 0:
+            msg = f"{Utilities.whoami()} <{Utilities.now()}>"
+            logger.info(msg)
         tempfiles = os.listdir(tempfolder)
         for tfile in tempfiles:
             try:
                 tpath = os.path.join(tempfolder, tfile)
+
                 if os.path.isfile(tpath):
+                    if verbosity > 0:
+                        msg = f"   file {tempfolder}  {tfile}"
+                        logger.info(msg)
                     os.remove(os.path.join(tempfolder, tfile))
                 elif os.path.isdir(tpath):
+                    if verbosity > 0:
+                        msg = f"  folder {tempfolder}  {tfile}"
+                        logger.info(msg)
                     shutil.rmtree(tpath)
-            except:
-                msg = Utilities.last_exception_info()
-                print(msg)
+            except Exception as e:
+                msg = f"  Error deleting File: {tpath}"
+                msg += Utilities.last_exception_info()
+                msg += Utilities.nowstr()
+                logger = logging.getLogger(__file__)
+                logger.error(msg)
                 raise RuntimeError(msg)
 
     @staticmethod
@@ -1000,17 +1034,18 @@ class GitBack(object):
                     if verbosity > 0:
                         logger.info (f"  {fi} / {len(filenames)}")
                 self.backup_file(filename=filename,
-                                sourcefolder=source_folder,
-                                destroot=destroot,
-                                destfolder=destfolder,
-                                tempfolder=tempfolder,
-                                include_exts=include_exts,
-                                exclude_exts=exclude_exts,
-                                dt_fmt=dt_fmt,
-                                comp_thresh=comp_thresh,
-                                compression=compression,
-                                compresslevel=compresslevel,
-                                testing=testing, verbosity=verbosity)
+                                 sourcefolder=source_folder,
+                                 destroot=destroot,
+                                 destfolder=destfolder,
+                                 tempfolder=tempfolder,
+                                 include_exts=include_exts,
+                                 exclude_exts=exclude_exts,
+                                 dt_fmt=dt_fmt,
+                                 comp_thresh=comp_thresh,
+                                 compression=compression,
+                                 compresslevel=compresslevel,
+                                 testing=testing, verbosity=verbosity)
+                self.clean_temp_folder(tempfolder=tempfolder)
             end_dt = Utilities.now()
             total_seconds = np.round((end_dt - start_dt).total_seconds(), 2)
             if verbosity > 0:
@@ -1023,6 +1058,10 @@ class GitBack(object):
     @staticmethod
     def file_in_backup(sourcepath, dest_folder, temp_folder,
                           sha_size=4096, verbosity=0):
+        if verbosity > 0:
+            logger = logging.getLogger(__file__)
+            msg = f"{Utilities.whoami()} <{Utilities.now()}>"
+            logger.info(msg)
         source_sha256 = Utilities.sha_256(sourcepath, fmode='rb', encoding=None,
                                           size=sha_size)
         # now check and see if the dest folder exists
@@ -1042,7 +1081,8 @@ class GitBack(object):
                 if dext == ".zip":
                     # have to unzip to check
                     temppath = Utilities.unzip_to_temp(dpath,
-                                                       tempfolder=temp_folder)
+                                                       tempfolder=temp_folder,
+                                                       verbosity=verbosity)
                     dest_sha256 = Utilities.sha_256(temppath, size=sha_size)
                 else:
                     dest_sha256 = Utilities.sha_256(dpath, size=sha_size)
@@ -1055,10 +1095,21 @@ class GitBack(object):
 
     @staticmethod
     def zipped_or_orig(sourcepath, tempfolder, comp_thresh, verbosity=0):
+        logger = logging.getLogger(__file__)
+        if verbosity > 0:
+            msg = f"{Utilities.whoami()} <{Utilities.now()}>"
+            msg = f"  {sourcepath}  {tempfolder}"
+            logger.info(msg)
+
         # try to zip the file
         def zipit(sourcepath,
                   tempfolder,
                   verbosity=0):
+            logger = logging.getLogger(__file__)
+            if verbosity > 0:
+                msg = f"{Utilities.whoami()} <{Utilities.now()}>"
+                msg = f"  {sourcepath}  {tempfolder}"
+                logger.info(msg)
             zipfilepath = Utilities.make_tempfilepath(tempfolder,
                                                       base="temp",
                                                       ext=".zip",
@@ -1071,13 +1122,11 @@ class GitBack(object):
                     time.sleep(0.01)
                     zf = Utilities.create_new_zip(sourcepath, zipfilepath)
                 except OSError as oe:
-                    msg = "\nsourcepath: {0}\nzipfilepath: {1}".format(sourcepath,
-                                                                       zipfilepath)
+                    msg = "\n {tries} {sourcepath} {zipfilepath} "
                     msg += Utilities.last_exception_info()
                     print(msg)
                 except Exception as e:
-                    msg = "\nsourcepath: {0}\nzipfilepath: {1}".format(sourcepath,
-                                                                       zipfilepath)
+                    msg = "\n {tries} {sourcepath} {zipfilepath} "
                     msg += Utilities.last_exception_info()
                     print(msg)
                 else:
@@ -1108,7 +1157,6 @@ class GitBack(object):
             infilepath = zipfilepath
         return zipfilepath, mode, ext
 
-
     def backup_file(self,
                     filename,
                     sourcefolder,
@@ -1123,14 +1171,15 @@ class GitBack(object):
                     compresslevel=zlib.Z_DEFAULT_COMPRESSION,
                     testing=False, verbosity=0):
         logger = logging.getLogger(__file__)
-
+        if verbosity > 0:
+            msg = f"{Utilities.whoami()} <{Utilities.now()}>"
+            msg = f"  {sourcefolder}  {destroot}"
+            logger.info(msg)
         pp_source_folder = PurePath(sourcefolder)
         # dirdrive = pp_source_folder.drive
-
         try:
             if verbosity > 1:
-                msg = "filename: {0}, source_folder: {1}".format(filename, sourcefolder)
-                logger.info(msg)
+                msg = f"filename: {filename}, source_folder: {sourcefolder}"
             file_base, file_ext = os.path.splitext(filename)
             if include_exts is not None:
                 if file_ext not in include_exts:
@@ -1145,6 +1194,20 @@ class GitBack(object):
 
             # get the sha256 for the source file
             sourcepath = os.path.join(sourcefolder, filename)
+
+            # check to see if have permission to read file
+            try:
+                with open(sourcepath, "rb") as fp:
+                    onebyte = fp.read(1)
+            except PermissionError:
+                msg = "Permission error on file {sourcepath}"
+                warnings.warn(msg)
+                return -1
+            except Exception:
+                msg = "Error reading file {sourcepath}"
+                warnings.warn(msg)
+                return -1
+
             # Note: source path becomes a dest folder,
             #  copies of source files are stored under there
             dirfolder = os.sep.join(pp_source_folder.parts[1:])
@@ -1173,16 +1236,16 @@ class GitBack(object):
 
         zipfilepath, mode, ext = GitBack.zipped_or_orig(sourcepath=sourcepath,
                                                         tempfolder=tempfolder,
-                                                        comp_thresh=comp_thresh, verbosity=0)
+                                                        comp_thresh=comp_thresh,
+                                                        verbosity=verbosity)
         # construct the dest file path
-
         ext = os.path.splitext(sourcepath)[1]
         if mode == "zip":
             ext = ".zip"
         dest_file_path = Utilities.make_tempfilepath(this_dest_folder,
-                                                         base=file_base,
-                                                         ext=ext,
-                                                         verbosity=verbosity)
+                                                     base=file_base,
+                                                     ext=ext,
+                                                     verbosity=verbosity)
         if mode == "orig":
             source_file_path = sourcepath
         else:
@@ -1203,8 +1266,7 @@ class GitBack(object):
 
             shutil.copy(source_file_path, dest_file_path)
         except OSError as oe:
-            errmsg = "\ninfilepath: {0}\n dest_file_path: {1}".format(source_file_path,
-                                                                      dest_file_path)
+            errmsg = f"\ninfilepath: {source_file_path}\n dest_file_path: {dest_file_pat}"
             errmsg += Utilities.last_exception_info()
             logger.error(errmsg)
             raise OSError(oe)
@@ -1270,11 +1332,10 @@ class GitBack(object):
                     if dest_size > source_size:
                         msg = " {0} tries checking on file, dest not written".format(tries)
                         raise RuntimeError(msg)
-
-                    GitBack.clean_temp_folder(tempfolder, verbosity=0)
+                    GitBack.clean_temp_folder(tempfolder, verbosity=verbosity)
                 except Exception as e:
-                    msg = "\n  Problem removing zipfile: {0}".format(zipfilepath)
-                    msg += "\n zfile: {0}".format(zipfile)
+                    msg = f"\n  Problem removing zipfile: {zipfilepath}"
+                    msg += f"\n zfile: {zipfile}"
                     msg += Utilities.last_exception_info()
                     logger.warning(msg)
                     raise RuntimeError(e)
@@ -1289,8 +1350,8 @@ class GitBack(object):
             err_msg = Utilities.last_exception_info()
             logger.warning(err_msg)
             raise RuntimeError(e)
-
-
+        finally:
+            return 0
 
     def find_files_in_backup(self,
                              backuproot,
@@ -1318,15 +1379,15 @@ class GitBack(object):
         found_map = OrderedDict()
         for filename in filenames:
             found_list = self.find_file_in_backup(backuproot=backuproot,
-                                      target_filename=filename,
-                                      verbosity=0)
+                                                  target_filename=filename,
+                                                  verbosity=verbosity)
             found_map[filename] = found_list
         return found_map
 
     def find_file_in_backup(self,
                             backuproot,
                             target_filename,
-                            origfolder = None,
+                            origfolder=None,
                             verbosity=0):
         argdict = locals().copy()
         verbosity = max(verbosity, self.verbosity)
@@ -1352,9 +1413,9 @@ class GitBack(object):
 
         found_list = []
         for source_folder, dirnames, filenames in os.walk(backuproot, topdown=True):
-            #pp_source_folder = PurePath(source_folder)
+            # pp_source_folder = PurePath(source_folder)
             # dirdrive = pp_source_folder.drive
-            #dirfolder = os.sep.join(pp_source_folder.parts[1:])
+            # dirfolder = os.sep.join(pp_source_folder.parts[1:])
             for dirname in dirnames:
                 dirfolder = os.path.join(source_folder, dirname)
                 if dirname == target_filename:
@@ -1381,8 +1442,6 @@ class GitBack(object):
         if len(meta) == 1:
             logger.warning("No file_info records")
             return None
-
-        # res = Utilities.check_outdir(outdir, create=create_outdir, verbosity=0)
 
         filemap = {}
         for i, e in enumerate(meta[1:]):
@@ -1479,6 +1538,7 @@ if __name__ == "__main__":
         exit(-1)
     
     if computername.upper() == "LENOVO-LEGION":
+        # noinspection SpellCheckingInspection
         bfolders = [
                     os.path.join("C:\\", "Users", username, "OneDrive", "Desktop"),
                     os.path.join("C:\\", "Users", username, "OneDrive", "Documents"),
@@ -1488,6 +1548,13 @@ if __name__ == "__main__":
                     os.path.join("C:\\", "Users", username, "Music"),
                     os.path.join("C:\\", "Users", username, "Documents"),
                     ]
+    elif re.search("hp.*large", computername.lower()):
+        # noinspection SpellCheckingInspection
+        bfolders = [
+            os.path.join("C:\\", "dev"),
+            os.path.join("C:\\", "Users", 'avapm'),
+            os.path.join("C:\\", "Users", username),
+        ]
     elif re.search("hp_small", computername.lower()):
         bfolders = [
             os.path.join("C:\\", "dev"),
@@ -1516,10 +1583,16 @@ if __name__ == "__main__":
 
     drives = Utilities.get_drives()
     for dr in drives:
-        dname = Utilities.get_drive_name(dr)
-        if dname.lower().startswith("back"):
-            dest_drive = dr
-            break
+        try:
+            # noinspection SpellCheckingInspection
+            dname = Utilities.get_drive_name(dr)
+            if dname.lower().startswith("back"):
+                dest_drive = dr
+                break
+        except Exception as e:
+            msg = f"err getting name for drive {dr}"
+            msg += Utilities.last_exception_info()
+            print(msg)
 
     dest_folder = os.path.join(dest_drive, "backup", computername)
     logfilename = "backup_log" + "_" + Utilities.nowshortstr() + ".txt"
@@ -1534,7 +1607,8 @@ if __name__ == "__main__":
                                 exclude_folders=["zztemp"],
                                 exclude_exts=['.exe'],
                                 temp_folder="./zztemp",
-                                verbosity=1)
+                                verbosity=2)
+        # noinspection SpellCheckingInspection
         backuproot = os.path.join(dest_drive, dest_folder)
         res = GB.find_files_in_backup(backuproot=backuproot,
                                   filenames=['addenv.bat'])
